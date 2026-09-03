@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-heading">
+  <div>
+    <p class="eyebrow">System overview</p>
+    <h1>Your inbox, at a glance</h1>
+    <p>Live sorting continues while this page is closed.</p>
+  </div>
+  <span class="status-pill {{ 'good' if status.connected else 'neutral' }}">
+    <span></span>{{ "Gmail connected" if status.connected else "Gmail disconnected" }}
+  </span>
+</header>
+
+{% if not status.connected %}
+<section class="callout">
+  <div class="callout-icon">↗</div>
+  <div><strong>Connect one Gmail account</strong><p>Authorization runs through a one-time loopback SSH tunnel, never this LAN page.</p></div>
+  <a class="button secondary" href="{{ ingress_url('/settings') }}">View setup</a>
+</section>
+{% endif %}
+
+<section class="stat-grid" aria-label="Mailbox statistics">
+  <article class="stat-card accent-teal"><span class="stat-icon">✓</span><div><strong>{{ "{:,}".format(status.applied_count) }}</strong><p>Messages organized</p></div><small>Applied safely</small></article>
+  <article class="stat-card accent-amber"><span class="stat-icon">◇</span><div><strong>{{ "{:,}".format(status.review_count) }}</strong><p>Need your review</p></div><a href="{{ ingress_url('/review') }}">Review now →</a></article>
+  <article class="stat-card accent-blue"><span class="stat-icon">↻</span><div><strong>{{ "{:,}".format(status.queue_depth) }}</strong><p>Waiting in queue</p></div><small>Live mail has priority</small></article>
+  <article class="stat-card accent-coral"><span class="stat-icon">▣</span><div><strong>{{ format_bytes(status.disk_free_bytes) }}</strong><p>Disk available</p></div><small>Local SQLite storage</small></article>
+</section>
+
+<section class="content-grid">
+  <article class="panel system-panel">
+    <div class="panel-heading"><div><p class="eyebrow">Health</p><h2>Sorting pipeline</h2></div><span class="tiny-label">{{ status.model_name }}</span></div>
+    <div class="pipeline">
+      <div class="pipeline-row"><span class="health-icon {{ 'on' if status.connected else '' }}">1</span><div><strong>Gmail sync</strong><small>{{ status.account_email or "Waiting for authorization" }}</small></div><b>{{ format_time(status.last_sync_at) }}</b></div>
+      <div class="pipeline-line"></div>
+      <div class="pipeline-row"><span class="health-icon {{ 'on' if status.model_available else '' }}">2</span><div><strong>Local classifier</strong><small>Llama 3.2 3B · one request at a time</small></div><b>{{ "Ready" if status.model_available else "Unavailable" }}</b></div>
+      <div class="pipeline-line"></div>
+      <div class="pipeline-row"><span class="health-icon {{ 'on' if status.backfill_status.value not in ['error'] else '' }}">3</span><div><strong>Historical mailbox</strong><small>{{ "{:,}".format(status.backfill_scanned) }} scanned · {{ "{:,}".format(status.backfill_staged) }} staged</small></div><b>{{ status.backfill_status.value.replace("_", " ").title() }}</b></div>
+    </div>
+  </article>
+  <article class="panel privacy-panel">
+    <div class="panel-heading"><div><p class="eyebrow">Privacy posture</p><h2>Stays on your devices</h2></div><span class="shield">✓</span></div>
+    <ul class="check-list">
+      <li><span>✓</span><div><strong>User-controlled model inference</strong><small>Pi-local or optional trusted laptop; no hosted model calls</small></div></li>
+      <li><span>✓</span><div><strong>Local-only database</strong><small>SQLite in the Docker data volume</small></div></li>
+      <li><span>✓</span><div><strong>Bounded learning data</strong><small>Redacted excerpts are encrypted; full bodies and attachments stay transient</small></div></li>
+      <li><span>✓</span><div><strong>Minimal Gmail scope</strong><small>gmail.modify cannot permanently delete mail</small></div></li>
+    </ul>
+  </article>
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">Personalized ensemble</p><h2>Teach Mail-Buddy your mailbox</h2></div><a class="text-link" href="{{ ingress_url('/learning') }}">Review accuracy →</a></div>
+  <div class="pipeline-row"><span class="health-icon {{ 'on' if learning.active_model else '' }}">P</span><div><strong>{{ learning.example_count }} owner-labeled examples</strong><small>The personal model advises Llama; confident disagreement is sent to Needs Review.</small></div><b>{{ learning.active_model.name if learning.active_model else "Collecting data" }}</b></div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">Recent activity</p><h2>Operational events</h2></div><a class="text-link" href="{{ ingress_url('/activity') }}">See all activity →</a></div>
+  {% if events %}
+  <div class="event-list">
+    {% for event in events %}
+    <div class="event-row"><span class="event-dot {{ event.level }}"></span><div><strong>{{ event.code.replace("_", " ").title() }}</strong><small>{{ event.details or "No sensitive details recorded" }}</small></div><time>{{ format_time(event.created_at) }}</time></div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state compact"><span>○</span><div><strong>No events yet</strong><p>Safe operational codes will appear here after Mail-Buddy starts processing.</p></div></div>
+  {% endif %}
+</section>
+{% endblock %}

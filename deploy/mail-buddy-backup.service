@@ -1,0 +1,13 @@
+[Unit]
+Description=Create Mail-Buddy SQLite backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mail-buddy
+ExecStartPre=/usr/bin/docker compose config --quiet
+ExecStart=/usr/bin/docker compose run --rm --no-deps -T app mail-buddy backup
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-heading">
+  <div><p class="eyebrow">Safe operational record</p><h1>Activity & undo</h1><p>Codes and bounded metadata only—never subjects, addresses, message bodies, or secrets.</p></div>
+  <form method="post" action="{{ ingress_url('/jobs/retry') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="button secondary" type="submit">Retry failed work</button>
+  </form>
+</header>
+<section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">90-day recovery</p><h2>Recent Gmail batches</h2></div><span class="tiny-label">{{ batches|length }} batches</span></div>
+  {% if batches %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Batch</th><th>Action</th><th>Category</th><th>Messages</th><th>Created</th><th></th></tr></thead>
+    <tbody>{% for batch in batches %}<tr>
+      <td><code>{{ batch.batch_id[:8] }}</code></td><td>{{ batch.action.replace("_", " ").title() }}</td><td>{{ category_name(batch.after_category) }}</td><td>{{ batch.message_count }}</td><td>{{ format_time(batch.created_at) }}</td>
+      <td>{% if batch.undone_count < batch.message_count and batch.undo_until >= now %}<form method="post" action="{{ ingress_url('/batches/' ~ batch.batch_id ~ '/undo') }}" data-confirm="Restore the exact prior Mail-Buddy labels and inbox state for this batch?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="text-button" type="submit">Undo batch</button></form>{% else %}<span class="muted">{{ "Undone" if batch.undone_count else "Expired" }}</span>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}
+  <div class="empty-state compact"><span>↶</span><div><strong>No Gmail changes yet</strong><p>Applied category batches appear here with exact undo for 90 days.</p></div></div>
+  {% endif %}
+</section>
+<section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">Redacted log</p><h2>Service events</h2></div></div>
+  {% if events %}<div class="event-list roomy">{% for event in events %}<div class="event-row"><span class="event-dot {{ event.level }}"></span><div><strong>{{ event.code.replace("_", " ").title() }}</strong><small>{{ event.details or "No sensitive details recorded" }}</small></div><time>{{ format_time(event.created_at) }}</time></div>{% endfor %}</div>
+  {% else %}<div class="empty-state compact"><span>○</span><div><strong>No events recorded</strong><p>Mail-Buddy is quiet.</p></div></div>{% endif %}
+</section>
+{% endblock %}

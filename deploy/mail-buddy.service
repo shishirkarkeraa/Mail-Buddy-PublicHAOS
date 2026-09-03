@@ -1,0 +1,18 @@
+[Unit]
+Description=Mail-Buddy private Gmail sorter
+Requires=docker.service mail-buddy-firewall.service
+After=docker.service mail-buddy-firewall.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/mail-buddy
+ExecStartPre=/opt/mail-buddy/scripts/deployment-preflight.sh /opt/mail-buddy
+ExecStart=/usr/bin/docker compose up --build --detach
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=0
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target
