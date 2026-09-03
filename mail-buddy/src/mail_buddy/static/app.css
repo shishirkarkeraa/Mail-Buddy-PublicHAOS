@@ -146,3 +146,79 @@ input:focus, select:focus, textarea:focus { border-color: var(--teal); box-shado
   .stat-grid, .scan-strip { grid-template-columns: 1fr; }.scan-strip div { border-left: 0; border-top: 1px solid rgba(255,255,255,.12); }.scan-strip div:first-child { border-top: 0; }.review-meta { grid-template-columns: 42px 1fr; }.review-label { grid-column: 2; justify-self: start; }.category-card summary { grid-template-columns: 38px 1fr 18px; }.approval-badge { grid-column: 2; justify-self: start; }.chevron { grid-column: 3; grid-row: 1 / 3; }.event-row { grid-template-columns: 10px 1fr; }.event-row time { grid-column: 2; }.callout { align-items: flex-start; flex-wrap: wrap; }.callout .button { margin-left: 54px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+
+/* Monochrome dark theme: no category or status color is used as the only cue. */
+:root {
+  --ink: #f5f5f5;
+  --ink-soft: #b8b8b8;
+  --paper: #050505;
+  --panel: #111111;
+  --line: #363636;
+  --teal: #f5f5f5;
+  --teal-deep: #d8d8d8;
+  --mint: #242424;
+  --coral: #f5f5f5;
+  --amber: #d0d0d0;
+  --blue: #c0c0c0;
+  --danger: #ffffff;
+  --shadow: 0 14px 38px rgba(0, 0, 0, .45);
+}
+
+html, body { background: #050505; }
+.app-shell, .page-shell, .login-shell, .login-panel { background: #050505; }
+.sidebar, .mobile-header, .scan-strip, .login-story {
+  color: #f5f5f5;
+  background: #0b0b0b;
+}
+.sidebar { border-right: 1px solid #2e2e2e; }
+.brand small, .privacy-note small, .sidebar nav a, .nav-logout,
+.eyebrow.light, .login-copy > p:not(.eyebrow), .privacy-chips span,
+.scan-strip span { color: #b8b8b8; }
+.brand-mark, .health-icon, .shield, .settings-icon, .check-list li > span,
+.category-glyph, .message-avatar, .empty-state > span, .callout-icon {
+  color: #050505;
+  background: #f5f5f5;
+}
+.brand-mark svg circle { fill: #f5f5f5; stroke: #050505; }
+.sidebar nav a:hover, .sidebar nav a.active { color: #ffffff; background: #242424; }
+.sidebar nav a.active { box-shadow: inset 3px 0 #ffffff; }
+.pulse-dot, .status-pill.good span, .health-icon.on { background: #ffffff; box-shadow: none; }
+.status-pill, .approval-badge, .tiny-label, .stat-card, .panel,
+.category-card, .review-card, .message-preview, .evidence-row,
+.sample-list, .callout, .inline-alert, .flash {
+  color: #f5f5f5;
+  background: #111111;
+  border-color: #363636;
+}
+.stat-icon, .approval-badge.approved, .review-label, .evidence-row span,
+.message-preview, .health-icon, .shield, .settings-icon, .check-list li > span,
+.empty-state > span { filter: grayscale(1); }
+.callout, .flash-success, .flash-danger, .flash-warning, .flash-info,
+.inline-alert.warning, .inline-alert.danger { color: #f5f5f5; background: #1b1b1b; }
+.event-dot, .event-dot.error, .event-dot.danger, .event-dot.warning,
+.event-dot.success { background: #f5f5f5; }
+.text-link, .text-button, .stat-card a, .message-preview a,
+.approval-badge.approved, .review-label { color: #ffffff; }
+.text-button.danger { color: #f5f5f5; }
+.button.primary, .button.danger { color: #050505; background: #f5f5f5; box-shadow: none; }
+.button.primary:hover { color: #050505; background: #d8d8d8; }
+.button.secondary { color: #f5f5f5; background: #1b1b1b; border-color: #4a4a4a; }
+input, select, textarea {
+  color: #f5f5f5;
+  background: #0b0b0b;
+  border-color: #4a4a4a;
+}
+input:focus, select:focus, textarea:focus { border-color: #ffffff; box-shadow: 0 0 0 3px rgba(255, 255, 255, .18); }
+.login-story { background-image: none; }
+.login-story::after { border-color: rgba(255, 255, 255, .14); box-shadow: 0 0 0 55px rgba(255, 255, 255, .025), 0 0 0 110px rgba(255, 255, 255, .02); }
+.mail-card { color: #050505; background: #f5f5f5; }
+.mail-card b { color: #050505; }
+.login-form label, .correction-form label, .stack-form label, .danger-zone label,
+.pipeline-row small, .pipeline-row b, .check-list small, .event-row small,
+.event-row time, .category-main small, .review-meta small, .label-path,
+.sample-row > small, .message-preview small, .message-field-label,
+.approve-row small, .definition-list dt, .form-footnote, th, .encrypted-value,
+footer { color: #a8a8a8 !important; }
+.message-body { color: #f5f5f5; }
+.event-row, .category-content, .sample-list, .sample-row, .definition-list div,
+td { border-color: #363636; }
