@@ -4,6 +4,18 @@ This is the public, self-contained Home Assistant app repository for
 Mail-Buddy. It contains no Gmail OAuth JSON, passwords, database, model, or
 application data. The app is in [`mail-buddy`](mail-buddy/).
 
+## Automated releases
+
+The private Mail-Buddy repository tests and publishes this app automatically
+after each eligible `main` push. The workflow needs a fine-grained GitHub token
+stored in the private repository as `MAIL_BUDDY_PUBLIC_HAOS_TOKEN`, with
+**Contents: Read and write** permission for this public repository only.
+
+Each successful release receives a higher HAOS app version. In Home Assistant,
+add this public repository in **Settings -> Apps -> App store -> Repositories**
+and enable Mail-Buddy automatic updates if you want the Supervisor to install
+new versions without a manual Update click.
+
 ## Retain existing HAOS data while switching source
 
 The existing locally installed app has the ID `local_mail_buddy`. Installing

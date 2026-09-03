@@ -1,0 +1,28 @@
+name: Validate HAOS app
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate app layout
+        run: |
+          test -f repository.yaml
+          test -f mail-buddy/config.yaml
+          test -f mail-buddy/Dockerfile
+          test -f mail-buddy/run.sh
+          test -d mail-buddy/src/mail_buddy
+          /bin/sh -n mail-buddy/run.sh
+          ! grep -R -n 'git clone' mail-buddy/Dockerfile
+
+      - name: Build the self-contained app image
+        run: docker build --tag mail-buddy-haos-ci:latest mail-buddy
