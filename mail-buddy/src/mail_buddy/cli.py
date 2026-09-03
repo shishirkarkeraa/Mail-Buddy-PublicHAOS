@@ -40,6 +40,10 @@ def _configure_logging(level: str) -> None:
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    # Some HAOS Python builds expose an incompatible HTTP status type to
+    # httpx 0.28's INFO formatter. Keep request-level client logs quiet; app
+    # errors remain visible and a successful Ollama health check stays usable.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     for handler in logging.getLogger().handlers:
         handler.addFilter(RedactingLogFilter())
 
