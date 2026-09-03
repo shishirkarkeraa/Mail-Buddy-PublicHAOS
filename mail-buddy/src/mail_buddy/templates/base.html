@@ -30,7 +30,7 @@
         </span>
       </a>
       <nav>
-        <a href="{{ ingress_url('/') }}" class="{{ 'active' if active == 'dashboard' else '' }}" {% if active == 'dashboard' %}aria-current="page"{% endif %}>
+        <a href="{{ ingress_url('/?overview=1') }}" class="{{ 'active' if active == 'dashboard' else '' }}" {% if active == 'dashboard' %}aria-current="page"{% endif %}>
           <span aria-hidden="true">⌂</span> Overview
         </a>
         <a href="{{ ingress_url('/backfill') }}" class="{{ 'active' if active == 'backfill' else '' }}" {% if active == 'backfill' %}aria-current="page"{% endif %}>

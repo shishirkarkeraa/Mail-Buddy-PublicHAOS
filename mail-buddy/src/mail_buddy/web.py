@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 PACKAGE_DIR = Path(__file__).resolve().parent
 TEMPLATES = Jinja2Templates(directory=str(PACKAGE_DIR / "templates"))
 LOGIN_CSRF_MAX_AGE_SECONDS = 15 * 60
+_DASHBOARD_SECTIONS = {"/backfill", "/review", "/learning", "/activity", "/settings"}
 
 
 class MailBuddyService(Protocol):
@@ -207,6 +208,11 @@ def _flash(request: Request, message: str, tone: str = "info") -> None:
         "message": redact_text(message)[:240],
         "tone": tone if tone in {"info", "success", "warning", "danger"} else "info",
     }
+
+
+def _remember_dashboard_section(request: Request, path: str) -> None:
+    if path in _DASHBOARD_SECTIONS:
+        request.session["last_dashboard_path"] = path
 
 
 def _category_name(value: str | Category | None) -> str:
@@ -685,7 +691,15 @@ def create_app(
         return response
 
     @application.get("/", response_class=HTMLResponse)
-    async def dashboard(request: Request, _: None = Depends(_require_login)) -> Response:
+    async def dashboard(
+        request: Request,
+        overview: bool = False,
+        _: None = Depends(_require_login),
+    ) -> Response:
+        last_path = request.session.get("last_dashboard_path")
+        if not overview and isinstance(last_path, str) and last_path in _DASHBOARD_SECTIONS:
+            return RedirectResponse(_ingress_url(request, last_path), status_code=303)
+        request.session["last_dashboard_path"] = "/"
         status = await _get_status(request.app.state.service, database, settings)
         learning = await _learning_status(request.app.state.service, database)
         context = _base_context(request, title="Overview", active="dashboard")
@@ -735,6 +749,7 @@ def create_app(
 
     @application.get("/backfill", response_class=HTMLResponse)
     async def backfill_page(request: Request, _: None = Depends(_require_login)) -> Response:
+        _remember_dashboard_section(request, "/backfill")
         status = await _get_status(request.app.state.service, database, settings)
         context = _base_context(request, title="Mailbox backfill", active="backfill")
         context.update({"status": status, "categories": _category_rows(database, settings)})
@@ -821,6 +836,7 @@ def create_app(
 
     @application.get("/review", response_class=HTMLResponse)
     async def review_page(request: Request, _: None = Depends(_require_login)) -> Response:
+        _remember_dashboard_section(request, "/review")
         context = _base_context(request, title="Needs review", active="review")
         context["messages"] = _review_messages(database)
         return TEMPLATES.TemplateResponse(request=request, name="review.html", context=context)
@@ -852,6 +868,7 @@ def create_app(
 
     @application.get("/settings", response_class=HTMLResponse)
     async def settings_page(request: Request, _: None = Depends(_require_login)) -> Response:
+        _remember_dashboard_section(request, "/settings")
         status = await _get_status(request.app.state.service, database, settings)
         stored_domains = database.get_setting("college_domains")
         domains = stored_domains if stored_domains is not None else settings.college_domains
@@ -871,6 +888,7 @@ def create_app(
 
     @application.get("/learning", response_class=HTMLResponse)
     async def learning_page(request: Request, _: None = Depends(_require_login)) -> Response:
+        _remember_dashboard_section(request, "/learning")
         context = _base_context(request, title="Personal learning", active="learning")
         context.update(
             {
@@ -999,6 +1017,7 @@ def create_app(
 
     @application.get("/activity", response_class=HTMLResponse)
     async def activity_page(request: Request, _: None = Depends(_require_login)) -> Response:
+        _remember_dashboard_section(request, "/activity")
         context = _base_context(request, title="Activity", active="activity")
         context.update(
             {
