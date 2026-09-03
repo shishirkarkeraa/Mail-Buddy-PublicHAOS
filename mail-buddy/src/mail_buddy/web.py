@@ -18,6 +18,7 @@ from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from itsdangerous import BadSignature, SignatureExpired, TimestampSigner
 from starlette.middleware.sessions import SessionMiddleware
 
 from mail_buddy.config import Settings, get_settings
@@ -36,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 TEMPLATES = Jinja2Templates(directory=str(PACKAGE_DIR / "templates"))
+LOGIN_CSRF_MAX_AGE_SECONDS = 15 * 60
 
 
 class MailBuddyService(Protocol):
@@ -143,6 +145,18 @@ def _csrf_token(request: Request) -> str:
     return token
 
 
+def _login_csrf_token(request: Request) -> str:
+    """Return a short-lived login token that survives a hostname change.
+
+    Browser cookies are deliberately host-specific. Home Assistant may be
+    reached through a LAN hostname, an IP address, or Tailscale, so the login
+    form cannot require a pre-existing cookie from the same host. The token is
+    still authenticated with the persistent application session secret.
+    """
+    signer: TimestampSigner = request.app.state.login_csrf_signer
+    return signer.sign(secrets.token_urlsafe(32)).decode("ascii")
+
+
 async def _require_csrf(request: Request) -> None:
     supplied = request.headers.get("x-csrf-token", "")
     if not supplied:
@@ -157,6 +171,21 @@ async def _require_csrf(request: Request) -> None:
         or not hmac.compare_digest(expected, supplied)
     ):
         raise HTTPException(status_code=403, detail="The form expired. Refresh and try again.")
+
+
+async def _require_login_csrf(request: Request) -> None:
+    form = await request.form()
+    value = form.get("csrf_token", "")
+    supplied = value if isinstance(value, str) else ""
+    if not supplied:
+        raise HTTPException(status_code=403, detail="The form expired. Refresh and try again.")
+    signer: TimestampSigner = request.app.state.login_csrf_signer
+    try:
+        signer.unsign(supplied, max_age=LOGIN_CSRF_MAX_AGE_SECONDS)
+    except (BadSignature, SignatureExpired) as exc:
+        raise HTTPException(
+            status_code=403, detail="The form expired. Refresh and try again."
+        ) from exc
 
 
 def _require_login(request: Request) -> None:
@@ -503,6 +532,9 @@ def create_app(
     application.state.settings = settings
     application.state.database = database
     application.state.service = service
+    application.state.login_csrf_signer = TimestampSigner(
+        session_secret, salt="mail-buddy-login-csrf"
+    )
     application.add_middleware(
         SessionMiddleware,
         secret_key=session_secret,
@@ -587,6 +619,7 @@ def create_app(
         if request.session.get("authenticated") is True:
             return RedirectResponse(_safe_next(next), status_code=303)
         context = _base_context(request, title="Sign in", active="")
+        context["csrf_token"] = _login_csrf_token(request)
         context["next"] = _safe_next(next)
         context["setup_required"] = not bool(settings.resolved_password_hash)
         return TEMPLATES.TemplateResponse(request=request, name="login.html", context=context)
@@ -596,11 +629,12 @@ def create_app(
         request: Request,
         password: str = Form(""),
         next: str = Form("/"),
-        _: None = Depends(_require_csrf),
+        _: None = Depends(_require_login_csrf),
     ) -> Response:
         ip = _client_ip(request)
         if not limiter.is_allowed(ip):
             context = _base_context(request, title="Sign in", active="")
+            context["csrf_token"] = _login_csrf_token(request)
             context.update(
                 {
                     "next": _safe_next(next),
@@ -618,6 +652,7 @@ def create_app(
         if not password_hash or not verify_password(password_hash, password):
             limiter.record_failure(ip)
             context = _base_context(request, title="Sign in", active="")
+            context["csrf_token"] = _login_csrf_token(request)
             context.update(
                 {
                     "next": _safe_next(next),

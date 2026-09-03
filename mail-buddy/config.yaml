@@ -1,8 +1,8 @@
 name: Mail-Buddy
 slug: mail_buddy
-version: "0.2.3"
+version: "0.2.4"
 description: Private Gmail organisation with local Ollama inference
-url: https://github.com/shishirkarkeraa/Mail-Buddy-PublicHAOS
+url: https://github.com/shishirkarkeraa/Mail-Buddy
 arch:
   - aarch64
   - amd64
