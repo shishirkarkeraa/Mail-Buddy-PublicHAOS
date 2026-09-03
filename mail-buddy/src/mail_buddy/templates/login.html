@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block public_content %}
+<main class="login-shell" id="main-content">
+  <section class="login-story" aria-label="Mail-Buddy introduction">
+    <a class="brand brand-light" href="{{ ingress_url('/login') }}">
+      <span class="brand-mark" aria-hidden="true">M</span>
+      <span><strong>Mail-Buddy</strong><small>Private mail sorter</small></span>
+    </a>
+    <div class="login-copy">
+      <p class="eyebrow light">Your inbox, quietly organized</p>
+      <h1>Local intelligence.<br>No audience.</h1>
+      <p>Your Gmail is classified on your Raspberry Pi or optional trusted laptop by Llama 3.2. Email bodies and attachments are never stored by the dashboard.</p>
+      <div class="privacy-chips">
+        <span>Local Llama</span><span>Local SQLite</span><span>No telemetry</span>
+      </div>
+    </div>
+    <div class="mail-art" aria-hidden="true">
+      <span class="mail-card card-one">College notice <b>Important</b></span>
+      <span class="mail-card card-two">Order shipped <b>Shopping</b></span>
+      <span class="mail-card card-three">Interview update <b>Career</b></span>
+    </div>
+  </section>
+  <section class="login-panel">
+    <form class="login-form" action="{{ ingress_url('/login') }}" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="next" value="{{ next }}">
+      <p class="eyebrow">LAN dashboard</p>
+      <h2>Welcome back</h2>
+      <p class="muted">Enter the password created during setup.</p>
+      {% if setup_required %}
+      <div class="inline-alert warning">No dashboard password is configured. Complete the secret-generation step in <code>START_HERE.txt</code> first.</div>
+      {% endif %}
+      {% if error %}<div class="inline-alert danger" role="alert">{{ error }}</div>{% endif %}
+      <label for="password">Dashboard password</label>
+      <input id="password" name="password" type="password" minlength="12" required autofocus autocomplete="current-password">
+      <button class="button primary wide" type="submit">Unlock Mail-Buddy <span aria-hidden="true">→</span></button>
+      <p class="form-footnote">Five failed attempts lock this address for five minutes.</p>
+    </form>
+  </section>
+</main>
+{% endblock %}

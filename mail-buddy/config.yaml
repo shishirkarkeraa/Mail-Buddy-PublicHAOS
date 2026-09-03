@@ -1,0 +1,42 @@
+name: Mail-Buddy
+slug: mail_buddy
+version: "0.2.3"
+description: Private Gmail organisation with local Ollama inference
+url: https://github.com/shishirkarkeraa/Mail-Buddy
+arch:
+  - aarch64
+  - amd64
+startup: services
+boot: auto
+init: false
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:email-check-outline
+panel_title: Mail-Buddy
+backup: hot
+options:
+  google_client_secret_json: ""
+  dashboard_password: ""
+  reset_dashboard_password: false
+  ollama_model: llama3.2:3b-instruct-q4_K_M
+  poll_interval_seconds: 120
+  training_interval_days: 7
+  training_hour_local: 2
+  timezone: Asia/Kolkata
+  college_domains: ""
+  oauth_authorize: false
+schema:
+  google_client_secret_json: password
+  dashboard_password: password
+  reset_dashboard_password: bool
+  ollama_model: str
+  poll_interval_seconds: int(30,3600)
+  training_interval_days: int(1,90)
+  training_hour_local: int(0,23)
+  timezone: str
+  college_domains: str?
+  oauth_authorize: bool
+ports:
+  8765/tcp: null
+ports_description:
+  8765/tcp: Temporary Gmail OAuth callback; enable only while authorising through an SSH tunnel.

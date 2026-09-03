@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{{ title }} · Mail-Buddy</title>
+  <link rel="stylesheet" href="{{ ingress_url('/static/app.css') }}">
+  <script src="{{ ingress_url('/static/app.js') }}" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  {% if request.session.get("authenticated") %}
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <a class="brand" href="{{ ingress_url('/') }}" aria-label="Mail-Buddy overview">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" role="img">
+            <path d="M6 11.5h28v19H6z"></path>
+            <path d="m7.5 13 12.5 10L32.5 13"></path>
+            <path d="m7.5 29 9.2-8M32.5 29l-9.2-8"></path>
+            <circle cx="31.5" cy="8.5" r="5.5"></circle>
+            <path d="m29.4 8.7 1.5 1.5 3-3.2"></path>
+          </svg>
+        </span>
+        <span>
+          <strong>Mail-Buddy</strong>
+          <small>Private mail sorter</small>
+        </span>
+      </a>
+      <nav>
+        <a href="{{ ingress_url('/') }}" class="{{ 'active' if active == 'dashboard' else '' }}" {% if active == 'dashboard' %}aria-current="page"{% endif %}>
+          <span aria-hidden="true">⌂</span> Overview
+        </a>
+        <a href="{{ ingress_url('/backfill') }}" class="{{ 'active' if active == 'backfill' else '' }}" {% if active == 'backfill' %}aria-current="page"{% endif %}>
+          <span aria-hidden="true">↻</span> Backfill
+        </a>
+        <a href="{{ ingress_url('/review') }}" class="{{ 'active' if active == 'review' else '' }}" {% if active == 'review' %}aria-current="page"{% endif %}>
+          <span aria-hidden="true">◇</span> Needs review
+        </a>
+        <a href="{{ ingress_url('/learning') }}" class="{{ 'active' if active == 'learning' else '' }}" {% if active == 'learning' %}aria-current="page"{% endif %}>
+          <span aria-hidden="true">◎</span> Personal learning
+        </a>
+        <a href="{{ ingress_url('/activity') }}" class="{{ 'active' if active == 'activity' else '' }}" {% if active == 'activity' %}aria-current="page"{% endif %}>
+          <span aria-hidden="true">≋</span> Activity
+        </a>
+        <a href="{{ ingress_url('/settings') }}" class="{{ 'active' if active == 'settings' else '' }}" {% if active == 'settings' %}aria-current="page"{% endif %}>
+          <span aria-hidden="true">⚙</span> Settings
+        </a>
+      </nav>
+      <div class="privacy-note">
+        <span class="pulse-dot"></span>
+        <div><strong>Local by design</strong><small>No hosted AI or database</small></div>
+      </div>
+      <form action="{{ ingress_url('/logout') }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="nav-logout" type="submit">Lock dashboard</button>
+      </form>
+    </aside>
+    <div class="page-shell">
+      <header class="mobile-header">
+        <a class="brand compact" href="{{ ingress_url('/') }}"><span class="brand-mark">M</span><strong>Mail-Buddy</strong></a>
+        <button class="menu-button" type="button" data-menu-toggle aria-label="Open navigation" aria-expanded="false">Menu</button>
+      </header>
+      <main id="main-content" class="page">
+        {% if flash %}
+        <div class="flash flash-{{ flash.tone }}" role="status">
+          <span>{{ flash.message }}</span>
+          <button type="button" data-dismiss aria-label="Dismiss message">×</button>
+        </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+      </main>
+      <footer>Full bodies and attachments stay transient. Encrypted training excerpts and decisions stay on this Pi.</footer>
+    </div>
+  </div>
+  {% else %}
+    {% block public_content %}{% endblock %}
+  {% endif %}
+</body>
+</html>

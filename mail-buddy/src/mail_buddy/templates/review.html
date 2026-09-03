@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-heading">
+  <div><p class="eyebrow">Human checkpoint</p><h1>Needs review</h1><p>Uncertain, conflicting, or suspicious messages receive Needs Review and are available here until you decide.</p></div>
+  <span class="status-pill warning"><span></span>{{ messages|length }} shown</span>
+</header>
+{% if messages %}
+<section class="review-list">
+  {% for message in messages %}
+  <article class="review-card">
+    <div class="review-meta">
+      <span class="message-avatar">{{ message.display_id[0:2] }}</span>
+      <div><strong>Message {{ message.display_id }}</strong><small>{{ format_time(message.internal_date) }} · {{ message.decision_source.replace("_", " ").title() if message.decision_source else "Classifier fallback" }}</small></div>
+      <span class="review-label">{{ category_name(message.primary_category) }}</span>
+    </div>
+    <div class="evidence-row">
+      {% for reason in message.reason_list %}<span>{{ reason.replace("_", " ").title() }}</span>{% endfor %}
+      {% for flag in message.flag_list %}<span class="flag">{{ flag.replace("_", " ").title() }}</span>{% endfor %}
+      {% if not message.reason_list and not message.flag_list %}<span>Insufficient safe evidence</span>{% endif %}
+    </div>
+    <div class="preview-control" data-preview-url="/api/messages/{{ message.message_id }}/preview">
+      <div class="message-preview" hidden aria-live="polite"></div>
+    </div>
+    <form class="correction-form" method="post" action="{{ ingress_url('/review/' ~ message.message_id ~ '/correct') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Correct category
+        <select name="category" required>
+          {% for value, label in category_options %}<option value="{{ value }}" {% if value == message.primary_category %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Remember correction
+        <select name="scope">
+          <option value="message">This message only</option>
+          <option value="similar">Future similar messages</option>
+          <option value="sender">All mail from this sender</option>
+        </select>
+      </label>
+      <button class="button primary" type="submit">Approve correction</button>
+    </form>
+  </article>
+  {% endfor %}
+</section>
+{% else %}
+<section class="empty-state hero-empty"><span>✓</span><div><h2>Review queue is clear</h2><p>Mail-Buddy will place uncertain or suspicious messages here without archiving them.</p><a class="button secondary" href="{{ ingress_url('/') }}">Return to overview</a></div></section>
+{% endif %}
+{% endblock %}

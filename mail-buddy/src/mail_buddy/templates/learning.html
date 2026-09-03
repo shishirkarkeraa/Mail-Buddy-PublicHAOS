@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-heading">
+  <div><p class="eyebrow">Mailbox-specific ensemble</p><h1>Personal learning</h1><p>Your answers train a small encrypted local model that advises—not replaces—the main Llama model.</p></div>
+  <span class="status-pill {{ 'good' if learning.active_model else 'neutral' }}"><span></span>{{ "Personal model active" if learning.active_model else "Collecting examples" }}</span>
+</header>
+
+<section class="settings-grid">
+  <article class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">Automatic training</p><h2>Schedule</h2></div><span class="settings-icon">↻</span></div>
+    <p class="muted">Training stays on the Pi. A candidate is promoted only after held-out accuracy testing and only when it is at least as accurate as the active version.</p>
+    <form class="stack-form" method="post" action="{{ ingress_url('/learning/schedule') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Automatic training
+        <select name="enabled" {% if not learning_editable %}disabled{% endif %}>
+          <option value="true" {% if learning.enabled %}selected{% endif %}>Enabled</option>
+          <option value="false" {% if not learning.enabled %}selected{% endif %}>Disabled</option>
+        </select>
+      </label>
+      <label>Train every
+        <select name="interval_days" {% if not learning_editable %}disabled{% endif %}>
+          {% for days, name in [(1, 'day'), (3, '3 days'), (7, 'week'), (14, '2 weeks'), (30, 'month')] %}<option value="{{ days }}" {% if learning.interval_days == days %}selected{% endif %}>{{ name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Start hour ({{ learning.timezone }})
+        <select name="hour_local" {% if not learning_editable %}disabled{% endif %}>
+          {% for hour in range(24) %}<option value="{{ hour }}" {% if learning.hour_local == hour %}selected{% endif %}>{{ "%02d:00"|format(hour) }}</option>{% endfor %}
+        </select>
+      </label>
+      <button class="button primary" type="submit" {% if not learning_editable %}disabled{% endif %}>Save schedule</button>
+    </form>
+  </article>
+  <article class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">Current state</p><h2>Learning health</h2></div><span class="settings-icon">◇</span></div>
+    <dl class="definition-list">
+      <div><dt>Owner-labeled examples</dt><dd>{{ learning.example_count }}</dd></div>
+      <div><dt>Companion readiness</dt><dd>{{ "Ready" if learning.companion_ready else "Needs 10 examples" }}</dd></div>
+      <div><dt>LoRA readiness</dt><dd>{{ "Ready for laptop" if learning.lora_ready else "Needs 200 balanced examples" }}</dd></div>
+      <div><dt>Awaiting an answer</dt><dd>{{ learning.candidate_count }}</dd></div>
+      <div><dt>Last training</dt><dd>{{ format_time(learning.last_training_at) }}</dd></div>
+      <div><dt>Next eligible run</dt><dd>{{ format_time(learning.next_eligible_at) }}</dd></div>
+      <div><dt>Current phase</dt><dd>{{ learning.current_phase|replace('_', ' ')|title }}</dd></div>
+      <div><dt>Active version</dt><dd>{{ learning.active_model.name if learning.active_model else "Not yet" }}</dd></div>
+      <div><dt>Held-out accuracy</dt><dd>{{ "%.1f%%"|format(learning.active_model.accuracy * 100) if learning.active_model else "Not yet" }}</dd></div>
+      <div><dt>Companion macro-F1</dt><dd>{{ "%.1f%%"|format(learning.active_model.macro_f1 * 100) if learning.active_model else "Not yet" }}</dd></div>
+      <div><dt>Fine-tuned Llama</dt><dd>{{ learning.active_main_model.name if learning.active_main_model else "Base model" }}</dd></div>
+      {% if learning.failure_reason %}<div><dt>Last failure</dt><dd>{{ learning.failure_reason }}</dd></div>{% endif %}
+    </dl>
+    <form method="post" action="{{ ingress_url('/learning/train') }}" class="stack-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="button secondary" type="submit" {% if not learning_editable %}disabled{% endif %}>Train and evaluate now</button>
+    </form>
+    <p class="form-footnote">At least 10 labeled examples and 5 evaluable held-out predictions are required by default.</p>
+    {% if learning.active_main_model and learning.main_models|selectattr('status', 'equalto', 'retired')|list %}
+    <form method="post" action="{{ ingress_url('/learning/rollback') }}" class="stack-form" data-confirm="Roll back to the previous fine-tuned Llama model?">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Type ROLLBACK<input name="confirmation" required pattern="ROLLBACK" autocomplete="off"></label>
+      <button class="button danger" type="submit">Rollback fine-tuned model</button>
+    </form>
+    {% endif %}
+  </article>
+</section>
+
+{% if learning.category_counts %}
+<section class="panel learning-history">
+  <div class="panel-heading"><div><p class="eyebrow">Dataset balance</p><h2>Confirmed examples by direct label</h2></div></div>
+  <div class="table-wrap"><table><thead><tr><th>Direct label</th><th>Examples</th><th>LoRA eligible</th></tr></thead><tbody>
+  {% for category, count in learning.category_counts|dictsort %}<tr><td>{{ category_name(category) }}</td><td>{{ count }}</td><td>{{ "Yes" if count >= 10 else "Needs " ~ (10-count) }}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endif %}
+
+<div class="section-heading"><div><p class="eyebrow">Accuracy questions</p><h2>What is the correct label?</h2></div><p>These are existing classified messages. Their full readable Gmail content is shown below; choose the true label and Mail-Buddy will both correct Gmail and learn from your answer.</p></div>
+{% if messages %}
+<section class="review-list">
+  {% for message in messages %}
+  <article class="review-card">
+    <div class="review-meta">
+      <span class="message-avatar">{{ message.display_id[0:2] }}</span>
+      <div><strong>Message {{ message.display_id }}</strong><small>{{ format_time(message.internal_date) }} · current prediction</small></div>
+      <span class="review-label">{{ category_name(message.primary_category) }}</span>
+    </div>
+    <div class="preview-control" data-preview-url="/api/messages/{{ message.message_id }}/preview">
+      <div class="message-preview" hidden aria-live="polite"></div>
+    </div>
+    <form class="correction-form" method="post" action="{{ ingress_url('/learning/' ~ message.message_id ~ '/label') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Correct label
+        <select name="category" required>{% for value, label in category_options %}<option value="{{ value }}" {% if value == message.primary_category %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+      </label>
+      <span class="form-footnote">Your answer is encrypted at rest and used in the next training run.</span>
+      <button class="button primary" type="submit">Save answer</button>
+    </form>
+  </article>
+  {% endfor %}
+</section>
+{% else %}
+<section class="empty-state compact"><span>✓</span><div><strong>No accuracy questions ready</strong><p>Process more mail or answer Needs Review items; new eligible messages will appear here.</p></div></section>
+{% endif %}
+
+{% if learning.models %}
+<section class="panel learning-history">
+  <div class="panel-heading"><div><p class="eyebrow">Promotion gate</p><h2>Recent model versions</h2></div></div>
+  <div class="table-wrap"><table><thead><tr><th>Version</th><th>Examples</th><th>Evaluated</th><th>Accuracy</th><th>Macro-F1</th><th>Status</th><th>Created</th></tr></thead><tbody>
+  {% for model in learning.models %}<tr><td><code>{{ model.name }}</code></td><td>{{ model.example_count }}</td><td>{{ model.evaluated_count }}</td><td>{{ "%.1f%%"|format(model.accuracy * 100) }}</td><td>{{ "%.1f%%"|format(model.macro_f1 * 100) }}</td><td>{{ model.status.title() }}</td><td>{{ format_time(model.created_at) }}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endif %}
+
+{% if learning.main_models %}
+<section class="panel learning-history">
+  <div class="panel-heading"><div><p class="eyebrow">Dual-host releases</p><h2>Fine-tuned Llama versions</h2></div></div>
+  <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Examples</th><th>Accuracy</th><th>Macro-F1</th><th>Status</th><th>Created</th></tr></thead><tbody>
+  {% for model in learning.main_models %}<tr><td><code>{{ model.name }}</code></td><td>{{ model.example_count }}</td><td>{{ "%.1f%%"|format(model.accuracy * 100) }}</td><td>{{ "%.1f%%"|format(model.macro_f1 * 100) }}</td><td>{{ model.status.title() }}</td><td>{{ format_time(model.created_at) }}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endif %}
+{% endblock %}
