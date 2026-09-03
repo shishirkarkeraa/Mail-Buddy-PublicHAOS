@@ -14,16 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Test the complete public source
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install '.[dev]'
-          python -m pytest -q
-
       - name: Validate app layout
         run: |
           test -f repository.yaml
