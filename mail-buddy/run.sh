@@ -63,7 +63,10 @@ export MAIL_BUDDY_POLL_INTERVAL_SECONDS="$(option poll_interval_seconds)"
 export MAIL_BUDDY_TRAINING_INTERVAL_DAYS="$(option training_interval_days)"
 export MAIL_BUDDY_TRAINING_HOUR_LOCAL="$(option training_hour_local)"
 export MAIL_BUDDY_COLLEGE_DOMAINS="$(option college_domains || true)"
-export MAIL_BUDDY_SECURE_COOKIES=true
+# Home Assistant Ingress can be opened on a LAN or Tailscale HTTP address.
+# A Secure cookie is discarded by browsers on those addresses, which makes a
+# successful login redirect straight back to the blank login form.
+export MAIL_BUDDY_SECURE_COOKIES=false
 export MAIL_BUDDY_ENVIRONMENT=production
 export TZ="$(option timezone)"
 
