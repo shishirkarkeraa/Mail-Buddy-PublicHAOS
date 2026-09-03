@@ -39,7 +39,7 @@
           <span>{{ sample.decision_source.replace("_", " ").title() if sample.decision_source else "Unknown source" }}</span>
           <span>{{ format_time(sample.internal_date) }}</span>
           {% if sample.flag_list %}<small>{{ sample.flag_list|join(" · ") }}</small>{% endif %}
-          <div class="preview-control" data-preview-url="/api/messages/{{ sample.message_id }}/preview"><div class="message-preview" hidden aria-live="polite"></div></div>
+          <div class="preview-control"><button class="text-button" type="button" data-preview-url="{{ ingress_url('/api/messages/' ~ sample.message_id ~ '/preview') }}">Show email content</button><div class="message-preview" hidden aria-live="polite"></div></div>
         </div>
         {% endfor %}
       </div>

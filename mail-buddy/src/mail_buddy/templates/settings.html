@@ -40,6 +40,14 @@
   </article>
 </section>
 <section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">Expanded taxonomy</p><h2>Additional label categories</h2></div><span class="tiny-label">{{ additional_categories|length }} added</span></div>
+  <p class="muted">Mail-Buddy creates these as direct top-level Gmail labels. They are available in automatic classification, Needs Review corrections, accuracy questions, and personalized training.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Direct Gmail label</th><th>Category ID</th></tr></thead>
+    <tbody>{% for value, label in additional_categories %}<tr><td>{{ label }}</td><td><code>{{ value }}</code></td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+<section class="panel">
   <div class="panel-heading"><div><p class="eyebrow">Deterministic corrections</p><h2>Saved rules</h2></div><span class="tiny-label">{{ rules|length }} rules</span></div>
   {% if rules %}
   <div class="table-wrap"><table>

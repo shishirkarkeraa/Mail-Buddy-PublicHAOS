@@ -1,5 +1,23 @@
 "use strict";
 
+async function readJsonResponse(response) {
+  const body = await response.text();
+  let payload;
+  try {
+    payload = JSON.parse(body);
+  } catch {
+    if (response.status === 401 || response.redirected) {
+      throw new Error("Your session expired. Refresh the page and sign in again.");
+    }
+    throw new Error(
+      response.ok
+        ? "Mail-Buddy returned an invalid response. Refresh the page and try again."
+        : `Mail-Buddy request failed (${response.status}). Refresh the page and try again.`,
+    );
+  }
+  return payload;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const menuButton = document.querySelector("[data-menu-toggle]");
   const sidebar = document.querySelector(".sidebar");
@@ -36,8 +54,18 @@ document.addEventListener("DOMContentLoaded", () => {
           credentials: "same-origin",
           headers: { Accept: "application/json" },
         });
-        const preview = await response.json();
+        const preview = await readJsonResponse(response);
         if (!response.ok) throw new Error(preview.detail || "Preview unavailable");
+        const summary = trigger.closest(".review-card")?.querySelector("[data-preview-summary]");
+        if (summary) {
+          const title = summary.querySelector("strong");
+          const detail = summary.querySelector("small");
+          if (title) title.textContent = preview.subject || "(No subject)";
+          if (detail) {
+            const existingDetail = detail.textContent || "";
+            detail.textContent = `From: ${preview.sender || "unknown sender"} · ${existingDetail}`;
+          }
+        }
         target.replaceChildren();
         const subjectLabel = document.createElement("small");
         subjectLabel.className = "message-field-label";

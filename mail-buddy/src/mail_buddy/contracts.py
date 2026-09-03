@@ -5,7 +5,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-TAXONOMY_VERSION = "1"
+TAXONOMY_VERSION = "2"
 MODEL_NAME = "llama3.2:3b-instruct-q4_K_M"
 
 
@@ -14,6 +14,8 @@ class Category(StrEnum):
     SECURITY_PASSWORD_RESET = "security_password_reset"  # noqa: S105
     SECURITY_ACCOUNT_ALERT = "security_account_alert"
     FINANCE_BANK_TRANSACTION = "finance_bank_transaction"
+    FINANCE_BILLS_UTILITIES = "finance_bills_utilities"
+    FINANCE_RECEIPTS_INVOICES = "finance_receipts_invoices"
     PROMOTION_GENERAL = "promotion_general"
     COLLEGE_IMPORTANT = "college_important"
     COLLEGE_INTERNSHIP_OPPORTUNITY = "college_internship_opportunity"
@@ -26,6 +28,10 @@ class Category(StrEnum):
     SHOPPING_ORDER_UPDATE = "shopping_order_update"
     SOCIAL = "social"
     DIRECT_PERSONAL = "direct_personal"
+    TRAVEL = "travel"
+    HEALTH_MEDICAL = "health_medical"
+    EVENTS_TICKETS = "events_tickets"
+    GOVERNMENT_LEGAL = "government_legal"
     OTHER = "other"
 
 
@@ -34,6 +40,8 @@ CATEGORY_LABELS: dict[Category, str] = {
     Category.SECURITY_PASSWORD_RESET: "Password Reset",
     Category.SECURITY_ACCOUNT_ALERT: "Account Alerts",
     Category.FINANCE_BANK_TRANSACTION: "Bank Transactions",
+    Category.FINANCE_BILLS_UTILITIES: "Bills & Utilities",
+    Category.FINANCE_RECEIPTS_INVOICES: "Receipts & Invoices",
     Category.PROMOTION_GENERAL: "General Promotions",
     Category.COLLEGE_IMPORTANT: "College Important",
     Category.COLLEGE_INTERNSHIP_OPPORTUNITY: "College Internship Opportunities",
@@ -46,8 +54,22 @@ CATEGORY_LABELS: dict[Category, str] = {
     Category.SHOPPING_ORDER_UPDATE: "Order Updates",
     Category.SOCIAL: "Social",
     Category.DIRECT_PERSONAL: "Personal",
+    Category.TRAVEL: "Travel",
+    Category.HEALTH_MEDICAL: "Health & Medical",
+    Category.EVENTS_TICKETS: "Events & Tickets",
+    Category.GOVERNMENT_LEGAL: "Government & Legal",
     Category.OTHER: "Other",
 }
+ADDITIONAL_CATEGORIES = frozenset(
+    {
+        Category.FINANCE_BILLS_UTILITIES,
+        Category.FINANCE_RECEIPTS_INVOICES,
+        Category.TRAVEL,
+        Category.HEALTH_MEDICAL,
+        Category.EVENTS_TICKETS,
+        Category.GOVERNMENT_LEGAL,
+    }
+)
 NEEDS_REVIEW_LABEL = "Needs Review"
 
 # Exact v1 names are retained only so GmailClient can rename existing labels in
@@ -58,6 +80,8 @@ LEGACY_CATEGORY_LABELS: dict[Category, str] = {
     Category.SECURITY_PASSWORD_RESET: "Mail-Buddy/Security/Password Reset",
     Category.SECURITY_ACCOUNT_ALERT: "Mail-Buddy/Security/Account Alerts",
     Category.FINANCE_BANK_TRANSACTION: "Mail-Buddy/Finance/Bank Transactions",
+    Category.FINANCE_BILLS_UTILITIES: "Mail-Buddy/Finance/Bills & Utilities",
+    Category.FINANCE_RECEIPTS_INVOICES: "Mail-Buddy/Finance/Receipts & Invoices",
     Category.PROMOTION_GENERAL: "Mail-Buddy/Promotions/General",
     Category.COLLEGE_IMPORTANT: "Mail-Buddy/College/Important",
     Category.COLLEGE_INTERNSHIP_OPPORTUNITY: "Mail-Buddy/College/Internship Opportunities",
@@ -70,6 +94,10 @@ LEGACY_CATEGORY_LABELS: dict[Category, str] = {
     Category.SHOPPING_ORDER_UPDATE: "Mail-Buddy/Shopping/Order Updates",
     Category.SOCIAL: "Mail-Buddy/Social",
     Category.DIRECT_PERSONAL: "Mail-Buddy/Direct/Personal",
+    Category.TRAVEL: "Mail-Buddy/Travel",
+    Category.HEALTH_MEDICAL: "Mail-Buddy/Health & Medical",
+    Category.EVENTS_TICKETS: "Mail-Buddy/Events & Tickets",
+    Category.GOVERNMENT_LEGAL: "Mail-Buddy/Government & Legal",
     Category.OTHER: "Mail-Buddy/Other",
 }
 LEGACY_NEEDS_REVIEW_LABEL = "Mail-Buddy/Needs Review"

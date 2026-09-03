@@ -23,6 +23,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from mail_buddy.config import Settings, get_settings
 from mail_buddy.contracts import (
+    ADDITIONAL_CATEGORIES,
     CATEGORY_LABELS,
     TAXONOMY_VERSION,
     BackfillState,
@@ -880,6 +881,13 @@ def create_app(
                 "rules": _rules(database),
                 "model_name": settings.ollama_model,
                 "poll_interval": settings.poll_interval_seconds,
+                "additional_categories": [
+                    (category.value, CATEGORY_LABELS[category])
+                    for category in sorted(
+                        ADDITIONAL_CATEGORIES,
+                        key=lambda item: CATEGORY_LABELS[item],
+                    )
+                ],
                 "settings_editable": hasattr(request.app.state.service, "update_college_domains"),
                 "rules_editable": hasattr(request.app.state.service, "delete_rule"),
             }

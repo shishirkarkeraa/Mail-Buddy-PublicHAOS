@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from mail_buddy.config import Settings
 from mail_buddy.content import redact_for_model
 from mail_buddy.contracts import (
+    ADDITIONAL_CATEGORIES,
     MODEL_NAME,
     TAXONOMY_VERSION,
     Category,
@@ -177,7 +178,11 @@ CLASSIFICATION_SYSTEM_PROMPT = (
     "categories require sender_domain to match college_domains. Prefer "
     "password reset over OTP, transactions/order updates over promotions, "
     "college placement/internship/notice over college important, and "
-    "internship over generic job related. Never invent evidence. A "
+    "internship over generic job related. Use bills and utilities for payment "
+    "due notices, receipts and invoices for completed purchases or invoices, "
+    "and the dedicated travel, health and medical, events and tickets, or "
+    "government and legal category only when the message clearly belongs "
+    "there. Never invent evidence. A "
     "personalized_model_hint, when present, is an advisory output from a "
     "separate locally trained model. Consider it, but independently classify "
     "the email and do not copy it when the email evidence disagrees."
@@ -1145,7 +1150,7 @@ class HybridClassifier:
                 and not evidence.automated
             ),
             Category.OTHER: decision.review_required,
-        }.get(category, False)
+        }.get(category, category in ADDITIONAL_CATEGORIES)
         if supported:
             return decision
         return decision.model_copy(

@@ -75,12 +75,13 @@
 <section class="review-list">
   {% for message in messages %}
   <article class="review-card">
-    <div class="review-meta">
+    <div class="review-meta" data-preview-summary>
       <span class="message-avatar">{{ message.display_id[0:2] }}</span>
-      <div><strong>Message {{ message.display_id }}</strong><small>{{ format_time(message.internal_date) }} · current prediction</small></div>
+      <div><strong>Email preview available</strong><small>{{ format_time(message.internal_date) }} · current prediction</small></div>
       <span class="review-label">{{ category_name(message.primary_category) }}</span>
     </div>
-    <div class="preview-control" data-preview-url="/api/messages/{{ message.message_id }}/preview">
+    <div class="preview-control">
+      <button class="button secondary" type="button" data-preview-url="{{ ingress_url('/api/messages/' ~ message.message_id ~ '/preview') }}">Show email content</button>
       <div class="message-preview" hidden aria-live="polite"></div>
     </div>
     <form class="correction-form" method="post" action="{{ ingress_url('/learning/' ~ message.message_id ~ '/label') }}">

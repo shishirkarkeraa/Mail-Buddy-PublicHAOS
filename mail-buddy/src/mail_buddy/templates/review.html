@@ -8,9 +8,9 @@
 <section class="review-list">
   {% for message in messages %}
   <article class="review-card">
-    <div class="review-meta">
+    <div class="review-meta" data-preview-summary>
       <span class="message-avatar">{{ message.display_id[0:2] }}</span>
-      <div><strong>Message {{ message.display_id }}</strong><small>{{ format_time(message.internal_date) }} · {{ message.decision_source.replace("_", " ").title() if message.decision_source else "Classifier fallback" }}</small></div>
+      <div><strong>Email preview available</strong><small>{{ format_time(message.internal_date) }} · {{ message.decision_source.replace("_", " ").title() if message.decision_source else "Classifier fallback" }}</small></div>
       <span class="review-label">{{ category_name(message.primary_category) }}</span>
     </div>
     <div class="evidence-row">
@@ -18,7 +18,8 @@
       {% for flag in message.flag_list %}<span class="flag">{{ flag.replace("_", " ").title() }}</span>{% endfor %}
       {% if not message.reason_list and not message.flag_list %}<span>Insufficient safe evidence</span>{% endif %}
     </div>
-    <div class="preview-control" data-preview-url="/api/messages/{{ message.message_id }}/preview">
+    <div class="preview-control">
+      <button class="button secondary" type="button" data-preview-url="{{ ingress_url('/api/messages/' ~ message.message_id ~ '/preview') }}">Show email content</button>
       <div class="message-preview" hidden aria-live="polite"></div>
     </div>
     <form class="correction-form" method="post" action="{{ ingress_url('/review/' ~ message.message_id ~ '/correct') }}">
