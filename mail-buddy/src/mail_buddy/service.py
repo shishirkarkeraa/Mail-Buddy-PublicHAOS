@@ -210,6 +210,10 @@ class MailBuddyService:
                 self._maintenance_loop(),
                 name="mail-buddy-maintenance",
             ),
+            asyncio.create_task(
+                self._content_sync_loop(),
+                name="mail-buddy-content-sync",
+            ),
         ]
 
     async def stop(self) -> None:
@@ -248,6 +252,7 @@ class MailBuddyService:
         account = self.database.get_account()
         counts = self.database.get_counts()
         backfill = self.database.get_backfill()
+        content_sync = self.database.get_content_sync_progress()
         model_available = await self._model_available()
         active_main = self.database.get_active_main_model()
         disk_path = self.settings.data_dir
@@ -276,15 +281,61 @@ class MailBuddyService:
             backfill_status=backfill_state,
             backfill_scanned=int(backfill.get("total_scanned", 0)),
             backfill_staged=int(backfill.get("total_staged", 0)),
+            content_sync_total=int(content_sync.get("total", 0)),
+            content_sync_cached=int(content_sync.get("cached", 0)),
+            content_sync_last_at=content_sync.get("last_cached_at"),
             disk_free_bytes=disk_free,
         )
 
     @_guard_operation
     async def get_message_preview(self, message_id: str) -> dict[str, str | int]:
-        """Fetch email content for the authenticated dashboard without persisting it."""
+        """Return an encrypted local preview, fetching Gmail only on a cache miss."""
+
+        cached = self.database.get_cached_message_content(message_id)
+        if cached is not None:
+            try:
+                body = self.secret_box.decrypt(str(cached["body_ciphertext"]))
+                sender = self.secret_box.decrypt(str(cached["sender_ciphertext"]))
+                subject = self.secret_box.decrypt(str(cached["subject_ciphertext"]))
+                attachment_text = self.secret_box.decrypt(
+                    str(cached["attachment_text_ciphertext"])
+                )
+            except ValueError:
+                # A cache encrypted with an old key must never block access to
+                # the email; Gmail remains the source of truth.
+                cached = None
+            else:
+                return {
+                    "message_id": message_id,
+                    "sender": sender,
+                    "subject": subject,
+                    "body": body,
+                    "attachment_text": attachment_text,
+                    "content": body,
+                    "internal_date": int(cached["internal_date"]),
+                }
 
         gmail = await self._get_gmail()
-        await self._call(gmail.get_metadata, message_id)
+        parsed = await self._fetch_and_cache_message(gmail, message_id)
+        metadata = parsed.metadata
+        return {
+            "message_id": metadata.message_id,
+            "sender": metadata.sender,
+            "subject": metadata.subject,
+            "body": parsed.body_text,
+            "attachment_text": parsed.attachment_text,
+            # Retain this field for dashboard clients from earlier releases.
+            "content": parsed.body_text,
+            "internal_date": metadata.internal_date,
+        }
+
+    async def _fetch_and_cache_message(
+        self,
+        gmail: GmailClient | Any,
+        message_id: str,
+        *,
+        two_way_history: bool = False,
+    ) -> Any:
         full_message = await self._call(gmail.get_full_message, message_id)
 
         async def attachment_loader(
@@ -297,18 +348,21 @@ class MailBuddyService:
                 attachment_id,
             )
 
-        parsed = await self.extractor.parse_full(full_message, attachment_loader)
+        parsed = await self.extractor.parse_full(
+            full_message,
+            attachment_loader,
+            two_way_history=two_way_history,
+        )
         metadata = parsed.metadata
-        return {
-            "message_id": metadata.message_id,
-            "sender": metadata.sender,
-            "subject": metadata.subject,
-            "body": parsed.body_text,
-            "attachment_text": parsed.attachment_text,
-            # Retain this field for dashboard clients from earlier releases.
-            "content": parsed.body_text,
-            "internal_date": metadata.internal_date,
-        }
+        self.database.cache_message_content(
+            message_id=metadata.message_id,
+            sender_ciphertext=self.secret_box.encrypt(metadata.sender),
+            subject_ciphertext=self.secret_box.encrypt(metadata.subject),
+            body_ciphertext=self.secret_box.encrypt(parsed.body_text),
+            attachment_text_ciphertext=self.secret_box.encrypt(parsed.attachment_text),
+            internal_date=metadata.internal_date,
+        )
+        return parsed
 
     async def _model_available(self) -> bool:
         health = getattr(self.classifier, "health", None)
@@ -538,24 +592,14 @@ class MailBuddyService:
             metadata,
             college_domains=domains,
         )
+        # Cache every processed message, including ones confidently handled by
+        # deterministic rules, so dashboard previews are immediate later.
+        parsed = await self._fetch_and_cache_message(
+            gmail,
+            message_id,
+            two_way_history=two_way,
+        )
         if decision is None:
-            full_message = await self._call(gmail.get_full_message, message_id)
-
-            async def attachment_loader(
-                attachment_message_id: str,
-                attachment_id: str,
-            ) -> bytes:
-                return await self._call(
-                    gmail.get_attachment,
-                    attachment_message_id,
-                    attachment_id,
-                )
-
-            parsed = await self.extractor.parse_full(
-                full_message,
-                attachment_loader,
-                two_way_history=two_way,
-            )
             decision = await self.classifier.classify(
                 parsed,
                 college_domains=domains,
@@ -1340,6 +1384,27 @@ class MailBuddyService:
             except (OSError, RuntimeError, ValueError):
                 self.database.add_event("error", "personalized_training_failed")
             await self._wait_or_stop(3600)
+
+    async def _content_sync_loop(self) -> None:
+        """Backfill encrypted preview content without delaying mail classification."""
+
+        while self._stop_event is not None and not self._stop_event.is_set():
+            candidate = self.database.next_message_without_cached_content()
+            if candidate is None:
+                await self._wait_or_stop(30)
+                continue
+            try:
+                gmail = await self._get_gmail()
+                await self._fetch_and_cache_message(gmail, str(candidate["message_id"]))
+            except (GmailError, ServiceUnavailableError, OSError, ValueError) as error:
+                self.database.add_event(
+                    "warning",
+                    "content_cache_sync_failed",
+                    {"code": getattr(error, "code", "unavailable")},
+                )
+                await self._wait_or_stop(30)
+                continue
+            await self._wait_or_stop(0.2)
 
     async def _wait_or_stop(self, seconds: float) -> None:
         if self._stop_event is None:

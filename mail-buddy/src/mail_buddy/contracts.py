@@ -256,6 +256,9 @@ class DashboardStatus(BaseModel):
     backfill_status: BackfillState = BackfillState.IDLE
     backfill_scanned: int = 0
     backfill_staged: int = 0
+    content_sync_total: int = 0
+    content_sync_cached: int = 0
+    content_sync_last_at: str | None = None
     disk_free_bytes: int = 0
 
 

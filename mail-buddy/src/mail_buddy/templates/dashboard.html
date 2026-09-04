@@ -35,6 +35,8 @@
       <div class="pipeline-row"><span class="health-icon {{ 'on' if status.model_available else '' }}">2</span><div><strong>Local classifier</strong><small>Llama 3.2 3B · one request at a time</small></div><b>{{ "Ready" if status.model_available else "Unavailable" }}</b></div>
       <div class="pipeline-line"></div>
       <div class="pipeline-row"><span class="health-icon {{ 'on' if status.backfill_status.value not in ['error'] else '' }}">3</span><div><strong>Historical mailbox</strong><small>{{ "{:,}".format(status.backfill_scanned) }} scanned · {{ "{:,}".format(status.backfill_staged) }} staged</small></div><b>{{ status.backfill_status.value.replace("_", " ").title() }}</b></div>
+      <div class="pipeline-line"></div>
+      <div class="pipeline-row"><span class="health-icon {{ 'on' if status.content_sync_cached else '' }}">4</span><div><strong>Email content cache</strong><small>{{ "{:,}".format(status.content_sync_cached) }} / {{ "{:,}".format(status.content_sync_total) }} subjects and bodies encrypted locally</small></div><b>{{ ((status.content_sync_cached * 100 / status.content_sync_total) | round | int) if status.content_sync_total else "Waiting" }}{{ "%" if status.content_sync_total else "" }}</b></div>
     </div>
   </article>
   <article class="panel privacy-panel">
@@ -42,7 +44,7 @@
     <ul class="check-list">
       <li><span>✓</span><div><strong>User-controlled model inference</strong><small>Pi-local or optional trusted laptop; no hosted model calls</small></div></li>
       <li><span>✓</span><div><strong>Local-only database</strong><small>SQLite in the Docker data volume</small></div></li>
-      <li><span>✓</span><div><strong>Bounded learning data</strong><small>Redacted excerpts are encrypted; full bodies and attachments stay transient</small></div></li>
+      <li><span>✓</span><div><strong>Encrypted email cache</strong><small>Subjects, bodies, and extracted attachment text stay encrypted in local SQLite for faster previews</small></div></li>
       <li><span>✓</span><div><strong>Minimal Gmail scope</strong><small>gmail.modify cannot permanently delete mail</small></div></li>
     </ul>
   </article>

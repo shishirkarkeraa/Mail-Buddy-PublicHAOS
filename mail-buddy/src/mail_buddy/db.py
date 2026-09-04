@@ -113,6 +113,21 @@ class Database:
                     CREATE INDEX IF NOT EXISTS messages_sender_idx
                     ON messages(sender_key);
 
+                    -- Gmail content is stored separately so message metadata can
+                    -- continue to be queried without decrypting email text.
+                    CREATE TABLE IF NOT EXISTS message_content_cache (
+                        message_id TEXT PRIMARY KEY,
+                        sender_ciphertext TEXT NOT NULL,
+                        subject_ciphertext TEXT NOT NULL,
+                        body_ciphertext TEXT NOT NULL,
+                        attachment_text_ciphertext TEXT NOT NULL,
+                        internal_date INTEGER NOT NULL DEFAULT 0,
+                        cached_at TEXT NOT NULL
+                    );
+
+                    CREATE INDEX IF NOT EXISTS message_content_cache_cached_idx
+                    ON message_content_cache(cached_at);
+
                     CREATE TABLE IF NOT EXISTS jobs (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         message_id TEXT NOT NULL REFERENCES messages(message_id)
@@ -778,6 +793,83 @@ class Database:
                 "SELECT * FROM messages WHERE message_id = ?", (message_id,)
             ).fetchone()
         return dict(row) if row else None
+
+    def cache_message_content(
+        self,
+        *,
+        message_id: str,
+        sender_ciphertext: str,
+        subject_ciphertext: str,
+        body_ciphertext: str,
+        attachment_text_ciphertext: str,
+        internal_date: int,
+    ) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO message_content_cache(
+                    message_id, sender_ciphertext, subject_ciphertext,
+                    body_ciphertext, attachment_text_ciphertext, internal_date,
+                    cached_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(message_id) DO UPDATE SET
+                    sender_ciphertext = excluded.sender_ciphertext,
+                    subject_ciphertext = excluded.subject_ciphertext,
+                    body_ciphertext = excluded.body_ciphertext,
+                    attachment_text_ciphertext = excluded.attachment_text_ciphertext,
+                    internal_date = excluded.internal_date,
+                    cached_at = excluded.cached_at
+                """,
+                (
+                    message_id,
+                    sender_ciphertext,
+                    subject_ciphertext,
+                    body_ciphertext,
+                    attachment_text_ciphertext,
+                    internal_date,
+                    utc_now(),
+                ),
+            )
+
+    def get_cached_message_content(self, message_id: str) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM message_content_cache WHERE message_id = ?",
+                (message_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def next_message_without_cached_content(self) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT m.message_id
+                FROM messages AS m
+                LEFT JOIN message_content_cache AS c ON c.message_id = m.message_id
+                WHERE m.state != ? AND c.message_id IS NULL
+                ORDER BY CASE WHEN m.state = ? THEN 0 ELSE 1 END,
+                    m.internal_date DESC, m.updated_at DESC
+                LIMIT 1
+                """,
+                (MessageState.GONE.value, MessageState.NEEDS_REVIEW.value),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_content_sync_progress(self) -> dict[str, Any]:
+        with self.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    COUNT(m.message_id) AS total,
+                    COUNT(c.message_id) AS cached,
+                    MAX(c.cached_at) AS last_cached_at
+                FROM messages AS m
+                LEFT JOIN message_content_cache AS c ON c.message_id = m.message_id
+                WHERE m.state != ?
+                """,
+                (MessageState.GONE.value,),
+            ).fetchone()
+        return dict(row) if row else {"total": 0, "cached": 0, "last_cached_at": None}
 
     def list_messages(
         self,
@@ -1593,6 +1685,7 @@ class Database:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute("DELETE FROM jobs")
             connection.execute("DELETE FROM messages")
+            connection.execute("DELETE FROM message_content_cache")
             connection.execute("DELETE FROM label_map")
             connection.execute("DELETE FROM label_aliases")
             connection.execute("DELETE FROM category_approvals")

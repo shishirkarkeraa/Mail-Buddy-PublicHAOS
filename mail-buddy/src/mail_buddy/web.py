@@ -316,6 +316,7 @@ def _database_status(database: Database, settings: Settings) -> DashboardStatus:
     account = database.get_account()
     counts = database.get_counts()
     backfill = database.get_backfill()
+    content_sync = database.get_content_sync_progress()
     try:
         free = shutil.disk_usage(settings.data_dir).free
     except OSError:
@@ -339,6 +340,9 @@ def _database_status(database: Database, settings: Settings) -> DashboardStatus:
         backfill_status=state,
         backfill_scanned=int(backfill.get("total_scanned") or 0),
         backfill_staged=int(backfill.get("total_staged") or 0),
+        content_sync_total=int(content_sync.get("total") or 0),
+        content_sync_cached=int(content_sync.get("cached") or 0),
+        content_sync_last_at=content_sync.get("last_cached_at"),
         disk_free_bytes=free,
     )
 
