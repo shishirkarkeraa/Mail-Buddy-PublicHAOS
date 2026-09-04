@@ -43,7 +43,9 @@ def _configure_logging(level: str) -> None:
     # Some HAOS Python builds expose an incompatible HTTP status type to
     # httpx 0.28's INFO formatter. Keep request-level client logs quiet; app
     # errors remain visible and a successful Ollama health check stays usable.
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    httpx_logger = logging.getLogger("httpx")
+    httpx_logger.setLevel(logging.CRITICAL)
+    httpx_logger.disabled = True
     for handler in logging.getLogger().handlers:
         handler.addFilter(RedactingLogFilter())
 
