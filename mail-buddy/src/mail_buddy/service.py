@@ -119,6 +119,10 @@ class MailBuddyService:
         )
         self._gmail = gmail_client
         self._gmail_lock = asyncio.Lock()
+        # google-api-python-client owns mutable HTTP state. Keep its calls on
+        # one thread at a time, especially while the low-priority cache sync is
+        # active beside the live Gmail poller.
+        self._gmail_request_lock = asyncio.Lock()
         self._stop_event: asyncio.Event | None = None
         self._tasks: list[asyncio.Task[None]] = []
         self._started = False
@@ -157,6 +161,10 @@ class MailBuddyService:
 
     async def _call(self, function: Any, /, *args: Any, **kwargs: Any) -> Any:
         return await asyncio.to_thread(function, *args, **kwargs)
+
+    async def _gmail_call(self, function: Any, /, *args: Any, **kwargs: Any) -> Any:
+        async with self._gmail_request_lock:
+            return await self._call(function, *args, **kwargs)
 
     async def _get_gmail(self, *, required: bool = True) -> Any | None:
         if self._disconnecting and self._operation_depth.get() == 0:
@@ -234,7 +242,7 @@ class MailBuddyService:
     @_guard_operation
     async def reconcile_labels(self) -> dict[str, str]:
         gmail = await self._get_gmail()
-        labels = await self._call(gmail.ensure_labels)
+        labels = await self._gmail_call(gmail.ensure_labels)
         for category, label_name in CATEGORY_LABELS.items():
             self.database.upsert_label(
                 category.value,
@@ -336,13 +344,13 @@ class MailBuddyService:
         *,
         two_way_history: bool = False,
     ) -> Any:
-        full_message = await self._call(gmail.get_full_message, message_id)
+        full_message = await self._gmail_call(gmail.get_full_message, message_id)
 
         async def attachment_loader(
             attachment_message_id: str,
             attachment_id: str,
         ) -> bytes:
-            return await self._call(
+            return await self._gmail_call(
                 gmail.get_attachment,
                 attachment_message_id,
                 attachment_id,
@@ -405,7 +413,7 @@ class MailBuddyService:
     async def start_backfill(self) -> None:
         gmail = await self._get_gmail()
         await self.reconcile_labels()
-        profile = await self._call(gmail.get_profile)
+        profile = await self._gmail_call(gmail.get_profile)
         history_id = str(profile.get("historyId", ""))
         if not history_id:
             raise ServiceUnavailableError(GmailErrorCode.INVALID_RESPONSE.value)
@@ -442,7 +450,7 @@ class MailBuddyService:
         if backfill.get("status") != BackfillState.RUNNING.value:
             return False
         gmail = await self._get_gmail()
-        messages, next_token = await self._call(
+        messages, next_token = await self._gmail_call(
             gmail.list_received_page,
             page_token=backfill.get("page_token"),
             max_results=self.settings.backfill_page_size,
@@ -472,7 +480,7 @@ class MailBuddyService:
         account = self.database.get_account()
         history_id = str(account.get("history_id") or "")
         if not history_id:
-            profile = await self._call(gmail.get_profile)
+            profile = await self._gmail_call(gmail.get_profile)
             history_id = str(profile.get("historyId", ""))
             email = str(profile.get("emailAddress", ""))
             if not history_id or not email:
@@ -480,7 +488,7 @@ class MailBuddyService:
             self.database.connect_account(email, history_id)
             return 0
         try:
-            messages, newest_history_id = await self._call(
+            messages, newest_history_id = await self._gmail_call(
                 gmail.list_history_added,
                 history_id,
             )
@@ -506,7 +514,7 @@ class MailBuddyService:
         return enqueued
 
     async def _recover_expired_history(self, gmail: Any) -> None:
-        profile = await self._call(gmail.get_profile)
+        profile = await self._gmail_call(gmail.get_profile)
         current_history = str(profile.get("historyId", ""))
         if not current_history:
             raise ServiceUnavailableError(GmailErrorCode.INVALID_RESPONSE.value)
@@ -575,7 +583,7 @@ class MailBuddyService:
 
     async def _classify_message(self, message_id: str) -> None:
         gmail = await self._get_gmail()
-        raw_metadata = await self._call(gmail.get_metadata, message_id)
+        raw_metadata = await self._gmail_call(gmail.get_metadata, message_id)
         metadata = self.extractor.parse_metadata(raw_metadata)
         if metadata.label_ids & EXCLUDED_LABEL_IDS:
             self.database.mark_gone(message_id)
@@ -584,7 +592,7 @@ class MailBuddyService:
         sender_key = self.secret_box.fingerprint(metadata.sender)
         two_way = self.database.get_correspondent(sender_key)
         if two_way is None:
-            two_way = await self._call(gmail.has_sent_to, metadata.sender)
+            two_way = await self._gmail_call(gmail.has_sent_to, metadata.sender)
             self.database.set_correspondent(sender_key, two_way)
         metadata.two_way_history = two_way
         domains = self._college_domains()
@@ -684,7 +692,7 @@ class MailBuddyService:
                 before_had_inbox="INBOX" in current_label_ids,
                 after_category=None,
             )
-            await self._call(
+            await self._gmail_call(
                 gmail.modify_message_labels,
                 message_id,
                 add_label_ids=add,
@@ -704,7 +712,7 @@ class MailBuddyService:
         category = Category(str(category_value))
         labels = await self._label_map()
         category_label_id = labels[category.value]
-        raw_metadata = await self._call(gmail.get_metadata, message_id)
+        raw_metadata = await self._gmail_call(gmail.get_metadata, message_id)
         current_labels = GmailClient.label_ids(raw_metadata)
         app_ids = set(labels.values()) | set(self.database.get_label_aliases())
         before_app = sorted(current_labels & app_ids)
@@ -724,7 +732,7 @@ class MailBuddyService:
                 before_had_inbox="INBOX" in current_labels,
                 after_category=category,
             )
-            await self._call(gmail.trash_message, message_id)
+            await self._gmail_call(gmail.trash_message, message_id)
             self.database.mark_applied(message_id, category_label_id, category)
             self.database.delete_setting(pending_key)
             return
@@ -748,7 +756,7 @@ class MailBuddyService:
                 before_had_inbox="INBOX" in current_labels,
                 after_category=category,
             )
-            await self._call(
+            await self._gmail_call(
                 gmail.modify_message_labels,
                 message_id,
                 add_label_ids=add,
@@ -789,7 +797,7 @@ class MailBuddyService:
         rule_pattern: str | None = None,
     ) -> str | None:
         gmail = await self._get_gmail()
-        raw_metadata = await self._call(gmail.get_metadata, message_id)
+        raw_metadata = await self._gmail_call(gmail.get_metadata, message_id)
         metadata = self.extractor.parse_metadata(raw_metadata)
         row = self.database.get_message(message_id)
         predicted_category: Category | None = None
@@ -1195,8 +1203,8 @@ class MailBuddyService:
             message_id = str(audit["message_id"])
             try:
                 if audit["action"] == "trash_promotion":
-                    await self._call(gmail.untrash_message, message_id)
-                raw_metadata = await self._call(gmail.get_metadata, message_id)
+                    await self._gmail_call(gmail.untrash_message, message_id)
+                raw_metadata = await self._gmail_call(gmail.get_metadata, message_id)
             except MessageNotFoundError:
                 self.database.mark_audit_undone(int(audit["id"]))
                 self.database.mark_gone(message_id)
@@ -1218,7 +1226,7 @@ class MailBuddyService:
             elif "INBOX" in current:
                 remove.add("INBOX")
             if add or remove:
-                await self._call(
+                await self._gmail_call(
                     gmail.modify_message_labels,
                     message_id,
                     add_label_ids=add,
@@ -1389,6 +1397,12 @@ class MailBuddyService:
         """Backfill encrypted preview content without delaying mail classification."""
 
         while self._stop_event is not None and not self._stop_event.is_set():
+            # Live processing and the staged backfill always win. This keeps
+            # cache synchronization gentle on a Raspberry Pi and avoids a
+            # second Gmail request stream during startup.
+            if self.database.get_counts().get("queue", 0):
+                await self._wait_or_stop(10)
+                continue
             candidate = self.database.next_message_without_cached_content()
             if candidate is None:
                 await self._wait_or_stop(30)
@@ -1404,7 +1418,7 @@ class MailBuddyService:
                 )
                 await self._wait_or_stop(30)
                 continue
-            await self._wait_or_stop(0.2)
+            await self._wait_or_stop(2)
 
     async def _wait_or_stop(self, seconds: float) -> None:
         if self._stop_event is None:
